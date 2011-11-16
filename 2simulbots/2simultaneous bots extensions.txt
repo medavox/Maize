@@ -1,0 +1,21 @@
+list of Maize classes which have been modified to support simultaneous head-to-head:
+
+DoubleMazeFrame - re-laid out interface.
+DoubleTestTabPanel - made both TestThreads instantiated in start() refer to the same MazePanel. Also deleted all references to second Mazepanel.
+MazePanel - added support for second bot imgs with an overloaded constructor, uses hasNext() to conditionally render bots
+SingleTestFrame - modified string to create the bot buffered image, so they still refer to the red bot, which is now bot2.
+
+added images for second bot, in blue. swapped red and blue colours as a lazy fix for the above conditional rendering :
+
+red bot
+bot2N.png 
+bot2E.png
+bot2S.png
+bot2W.png
+
+blue bot
+botN.png 
+botE.png
+botS.png
+botW.png
+
