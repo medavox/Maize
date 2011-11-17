@@ -1,11 +1,19 @@
 package bots;
 import java.util.Random;
 import maize.*;
+import java.util.*;
+import java.awt.Point;
 /* 
  * HOW TO SOLVE THE 2 DEAD END PROBLEM
  * have a list of squares (points) you've been to before
  * whenever you detect a pattern, make a list of of the repeated squares;
- * for every repeated square in that list, check if it has any other directions you can go in.*/
+ * for every repeated square in that list, check if it has any other directions you can go in.
+ * 
+ * OR
+ * whilst doing this, create a map of the explored maze so far, containing its blocks and spaces
+ * (a massive and growable boolean matrix, basically)
+ * for all spaces on the edge of what we know (contain only blocks and unexplored areas for neighbours)
+ * order them in preference by their closeness to the goal (or closeness to you), then head for each of them in turn.*/
 public class Gorad implements Bot
 {
 	//NESW; always NESW.
@@ -18,6 +26,10 @@ public class Gorad implements Bot
 	private boolean leftOfGoal;
 	private boolean aboveGoal;
 	private boolean furtherVertically;
+	
+	private Set<Point> visitedSquares = new LinkedHashSet<Point>(100);
+	private Set<Point> retreadedSquares = new LinkedHashSet<Point>(100);
+	//private Set<Square> visitedSquares = new LinkedHashSet<Square>(100);
 	
 	//init the previous move to an invalid one, so when compared in 1st move, prevSqCard does not equal any of them.
 	private int prevSqCard = 5;
@@ -50,6 +62,17 @@ public class Gorad implements Bot
 		leftBlokt = view[0][1];
 		rightBlokt = view[2][1];
 		backBlokt = view[1][2];
+		
+		Point currentSquare = new Point(x, y);
+		
+		if(!visitedSquares.add(currentSquare)
+		&& !retreadedSquares.add(currentSquare))
+		{
+			//WARNING! we've been to this square at least twice before!
+			//we're probably stuck in a loop!
+			System.out.println("Gorad: We've been to "+x+","+y+" at least twice before!");
+			
+		}
 		
 		
 		/*make array of whether north, east, south west (respectively)
@@ -344,5 +367,18 @@ public class Gorad implements Bot
 		}
 		System.out.print("Gorad error "+(++logicFails)+": in checkMove(). randomising direction. \n");
 		return (int) (Math.random() * 4);
+	}
+}
+
+class Square
+{
+	private boolean[][] view;
+	public int x, y;
+	public byte timesVisited = 0;
+	public Square(int x, int y, boolean[][] v)
+	{
+		view = v;
+		this.x = x;
+		this.y = y;
 	}
 }
