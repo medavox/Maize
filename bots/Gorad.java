@@ -4,16 +4,15 @@ import maize.*;
 import java.util.*;
 import java.awt.Point;
 /* 
- * HOW TO SOLVE THE 2 DEAD END PROBLEM
- * have a list of squares (points) you've been to before
- * whenever you detect a pattern, make a list of of the repeated squares;
- * for every repeated square in that list, check if it has any other directions you can go in.
- * 
- * OR
- * whilst doing this, create a map of the explored maze so far, containing its blocks and spaces
- * (a massive and growable boolean matrix, basically)
- * for all spaces on the edge of what we know (contain only blocks and unexplored areas for neighbours)
- * order them in preference by their closeness to the goal (or closeness to you), then head for each of them in turn.*/
+ * THE 2 DEAD END PROBLEM
+ * whenever we detect we're in a dead end, set inDeadEnd to true _until_
+ * we are on a square with more possible routes than the way we came and and the way we're going.
+ * When that happens, add the previous square's coordinates to a list of
+ * dead-end openings, which we then test against when ordering possible
+ * routes by preference, with a dead end being classed as blocked
+ * (which could help us detect that this area is also technically a dead end,
+ * but let's not get ahead of ourselves).
+ * */
 public class Gorad implements Bot
 {
 	//NESW; always NESW.
@@ -26,10 +25,9 @@ public class Gorad implements Bot
 	private boolean leftOfGoal;
 	private boolean aboveGoal;
 	private boolean furtherVertically;
+	private boolean inDeadEnd = false;
 	
-	private Set<Point> visitedSquares = new LinkedHashSet<Point>(100);
-	private Set<Point> retreadedSquares = new LinkedHashSet<Point>(100);
-	//private Set<Square> visitedSquares = new LinkedHashSet<Square>(100);
+	private Set<Point> deadEndOpenings = new HashSet<Point>(8);
 	
 	//init the previous move to an invalid one, so when compared in 1st move, prevSqCard does not equal any of them.
 	private int prevSqCard = 5;
@@ -62,18 +60,6 @@ public class Gorad implements Bot
 		leftBlokt = view[0][1];
 		rightBlokt = view[2][1];
 		backBlokt = view[1][2];
-		
-		Point currentSquare = new Point(x, y);
-		
-		if(!visitedSquares.add(currentSquare)
-		&& !retreadedSquares.add(currentSquare))
-		{
-			//WARNING! we've been to this square at least twice before!
-			//we're probably stuck in a loop!
-			System.out.println("Gorad: We've been to "+x+","+y+" at least twice before!");
-			
-		}
-		
 		
 		/*make array of whether north, east, south west (respectively)
 		 are blocked, independent of current orientation.
@@ -271,7 +257,8 @@ public class Gorad implements Bot
 		}
 		
 		boolean allUnique = true;
-		//after all that, check to see if preferred directions are all unique
+		//after all that, check to make sure the preferred directions are all unique
+		//(this is an errorcheck)
 		for(int i = 0; i < prefCard.length; i++)
 		{
 			for(int j = 0; j < prefCard.length; j++)
@@ -288,11 +275,49 @@ public class Gorad implements Bot
 		if(!allUnique)//if they're not all unique, complain
 		{System.out.print("Gorad error "+(++logicFails)+": not all preferred directions are unique! \n");}
 		
+		//calculate number of blockedDirs in advance now, in order to
+		//work out if we've come out of the dead end yet
 		int blockedDirs=0;
 		for(int i = 0; i < prefCard.length; i++)
 		{
-			if(cardBlock[prefCard[i]])//if this way is blocked, increment blockedDirs and move on
+			if(cardBlock[prefCard[i]])//if this dir is blocked, increment blockedDirs
 			{
+				blockedDirs++;
+			}
+			else if(isAKnownDeadEnd(getCoordOfAdjacent(new Point(x,y), prefCard[i])))
+			{
+				//is this way a known dead end opening?
+				//treat the mouth of a known dead end as blocked, because 
+				//there's no way we'd want to go that way.
+				blockedDirs++;
+			}
+		}
+		if(inDeadEnd
+		&& blockedDirs < 2)
+		{
+			//if this is the first time there's more direction to go in
+			//than just back to the dead end and the way out of it,
+			//we're no longer in a dead end, but the last square we were on led to it
+			inDeadEnd = false;
+			deadEndOpenings.add(getCoordOfAdjacent(new Point(x,y), prevSqCard));
+		}
+		
+		//perform a series of eliminating tests to work out
+		//which preferred direction we actually CAN go in
+		//this implementation is kind of inefficient because
+		//we perform the same set of tests twice.
+		//refactor it later.
+		for(int i = 0; i < prefCard.length; i++)
+		{
+			if(cardBlock[prefCard[i]])//if this dir is blocked, and move on
+			{
+				continue;
+			}
+			else if(isAKnownDeadEnd(getCoordOfAdjacent(new Point(x,y), prefCard[i])))
+			{
+				//is this way a known dead end opening?
+				//treat the mouth of a known dead end as blocked, because 
+				//there's no way we'd want to go that way.
 				blockedDirs++;
 				continue;
 			}
@@ -305,26 +330,31 @@ public class Gorad implements Bot
 				//if it's not blocked, isn't the way we came
 				//(and is the best direction due to the array testing the most preferential first),
 				//go this way!
-				return checkMove(prefCard[i], o);
+/*exitpoint*/	return checkMove(prefCard[i], o);
 			}
 		}
 		if(blockedDirs == 3)
 		{
-			//now check if the 3 directions which arent the one we came from are blocked; if so, go the we way we came.
-			//we are in a dead end. By logic, the only unblocked path is the way we came. Go back that way.
-			return checkMove(prevSqCard, o);
+			//now check if the 3 directions which arent the one we came from are blocked; 
+			//if so, go the we way we came, as we are in a dead end.
+			//By logic, the only unblocked path is the way we came. Go back that way.
+			inDeadEnd = true;
+/*exit*/	return checkMove(prevSqCard, o);
 		}
 		System.out.print("Gorad error "+(++logicFails)+": in nextMove(). randomising direction. \n");
 		return (int)(Math.random() * 4);
 	}
 	
+	//method to translate an absolute suggested direction (north, west, etc)
+	//into an action for Gorad to perform (turn right, go forwards etc)
 	//card - cardinal direction we want to travel in
 	//orie - the current orientation of the bot
 	private int checkMove(int card, int orie)
 	{
 		//simplest case: the cardinal direction we want to go in isn't blocked
-		//should never be blocked now, due to block checking taking place in for loop
-		//at the end of nextMove().
+		//(should never be blocked now, due to block checking taking place in for loop
+		//at the end of nextMove(); i've left the test in as a last resort check,
+		//as I don't trust java.)
 		if(!cardBlock[card])
 		{
 			//are we facing that direction as well?
@@ -368,17 +398,56 @@ public class Gorad implements Bot
 		System.out.print("Gorad error "+(++logicFails)+": in checkMove(). randomising direction. \n");
 		return (int) (Math.random() * 4);
 	}
-}
 
-class Square
-{
-	private boolean[][] view;
-	public int x, y;
-	public byte timesVisited = 0;
-	public Square(int x, int y, boolean[][] v)
+	private boolean isAKnownDeadEnd(Point pCheck)
 	{
-		view = v;
-		this.x = x;
-		this.y = y;
+		for(Point pd : deadEndOpenings)
+		{
+			if(pCheck.equals(pd))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	//helper method to get the coordinates of an adjacent square.
+	private Point getCoordOfAdjacent(Point current, int orie)
+	{
+		int outx;
+		int outy;
+		switch(orie)
+		{
+			//the square north of us
+			case 0:
+			outx = current.x;
+			outy = current.y -1;
+			break;
+			
+			//east of us
+			case 1:
+			outx = current.x + 1;
+			outy = current.y;
+			break;
+			
+			//south
+			case 2:
+			outx = current.x;
+			outy = current.y + 1;
+			break;
+			
+			//west
+			case 3:
+			outx = current.x - 1;
+			outy = current.y;
+			break;
+			
+			default:
+			outx = current.x;
+			outy = current.y;
+			System.out.print("Gorad error "+(++logicFails)+": something went wrong in getting an adjacent coordinate.");
+		}
+		
+		return new Point(outx, outy);
 	}
 }

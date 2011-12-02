@@ -15,6 +15,7 @@ public class GoSouth implements Bot
 	
 	public int nextMove(boolean[][] view, int x, int y, int o, int fx, int fy)
 	{
-		return Direction.LEFT;
+		System.out.println("coord: "+x+","+y);
+		return Direction.FORWARD;
 	}
 }
